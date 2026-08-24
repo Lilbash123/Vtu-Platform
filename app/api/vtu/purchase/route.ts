@@ -9,6 +9,14 @@ import { logger } from '@/lib/logger';
 
 const FIRST_REQUERY_DELAY_SECONDS = 30;
 
+// Helper domin samun request_id mai dacewa da VTPass (YYYYMMDDHHMM + random)
+function generateVtpassRequestId(): string {
+  const date = new Date();
+  const formattedDate = date.toISOString().replace(/[-T:\.Z]/g, "").slice(0, 12);
+  const randomStr = randomUUID().replace(/-/g, "").substring(0, 8);
+  return `${formattedDate}${randomStr}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser(req);
@@ -29,15 +37,6 @@ export async function POST(req: NextRequest) {
 
     const service = getServiceClient();
 
-    // FINANCIAL INTEGRITY FIX: previously every call created a brand new
-    // service_transactions row with a fresh request_id, so a retried or
-    // double-submitted purchase (client timeout + auto-retry, double-tap
-    // before the button disabled, a flaky mobile network resending the
-    // request) would lock funds and call VTpass a second time — a real
-    // second charge for what the user experienced as one action. If the
-    // caller supplies an idempotencyKey we've already seen for this user,
-    // return the existing transaction's current state instead of creating
-    // a new one.
     if (body.idempotencyKey) {
       const { data: existing } = await service
         .from('service_transactions')
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
         .from('providers').select('id').eq('code', 'vtpass').single();
       if (providerError || !provider) return NextResponse.json({ error: 'Provider not configured' }, { status: 500 });
 
-      providerServiceId = body.network!; // VTpass serviceID for airtime = network name directly
+      providerServiceId = body.network!;
       providerId = provider.id;
     } else {
       const { data: variation, error: variationError } = await service
@@ -96,7 +95,8 @@ export async function POST(req: NextRequest) {
       variationRowId = variation.id;
     }
 
-    const requestId = `vtu_${randomUUID()}`;
+    // Amfani da sabon tsarin VTPass Request ID Format
+    const requestId = generateVtpassRequestId();
 
     const { data: newTx, error: txInsertError } = await service
       .from('service_transactions')
@@ -108,9 +108,6 @@ export async function POST(req: NextRequest) {
       .select('id').single();
 
     if (txInsertError) {
-      // 23505 = unique_violation. A concurrent request with the same
-      // idempotency key won the race between our pre-check above and this
-      // insert — fetch and return its state rather than erroring out.
       if (txInsertError.code === '23505' && body.idempotencyKey) {
         const { data: existing } = await service
           .from('service_transactions')
@@ -153,7 +150,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: messages[lockStatus] ?? 'Purchase could not be locked' }, { status: 422 });
     }
 
-    const purchaseResult = await purchaseService({
+    let purchaseResult = await purchaseService({
       requestId,
       serviceId: providerServiceId,
       variationCode,
@@ -162,6 +159,27 @@ export async function POST(req: NextRequest) {
       billersCode: ['electricity', 'cable'].includes(body.serviceType) ? body.recipient : undefined,
     });
 
+    // IN-LINE REQUERY FIX: Idan aka samu outcome ambiguous (Processing/Pending)
+    // Tsaya na sakan 3, sannan ka sake gwadawa kafin ka saki response
+    if (purchaseResult.outcome === 'ambiguous') {
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+
+      // Sake jarraba Requery status
+      const retryResult = await purchaseService({
+        requestId,
+        serviceId: providerServiceId,
+        variationCode,
+        amount: body.amount / 100,
+        phone: body.recipient,
+        billersCode: ['electricity', 'cable'].includes(body.serviceType) ? body.recipient : undefined,
+      });
+
+      if (retryResult.outcome !== 'ambiguous') {
+        purchaseResult = retryResult;
+      }
+    }
+
+    // Idan har yanzu yana ambiguous bayan sekon 3, tura shi zuwa background requery queue
     if (purchaseResult.outcome === 'ambiguous') {
       await service
         .from('service_transactions')
@@ -180,6 +198,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Idan an samu Success ko Failure nan take
     const { data: settleResult, error: settleError } = await service.rpc('settle_wallet_purchase', {
       p_service_tx_id: newTx.id,
       p_outcome: purchaseResult.outcome,
