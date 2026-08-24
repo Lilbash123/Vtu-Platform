@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { requireUser, AuthError } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase';
 import { vtuPurchaseSchema, parseOrThrow } from '@/lib/validation';
-import { purchaseService } from '@/lib/vtpass';
+import { purchaseService, requeryTransaction } from '@/lib/vtpass';
 import { checkRateLimit, purchaseLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         .from('providers').select('id').eq('code', 'vtpass').single();
       if (providerError || !provider) return NextResponse.json({ error: 'Provider not configured' }, { status: 500 });
 
-      providerServiceId = body.network!;
+      providerServiceId = body.network!.toLowerCase();
       providerId = provider.id;
     } else {
       const { data: variation, error: variationError } = await service
@@ -162,7 +162,15 @@ export async function POST(req: NextRequest) {
     // IN-LINE REQUERY FIX: Idan aka samu outcome ambiguous (Processing/Pending)
     // Tsaya na sakan 3, sannan ka sake gwadawa kafin ka saki response
     if (purchaseResult.outcome === 'ambiguous') {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+  await new Promise((resolve) => setTimeout(resolve, 3500));
+
+  // Amfani da requeryTransaction domin gujewa kuskuren 014
+  const retryResult = await requeryTransaction(requestId);
+
+  if (retryResult.outcome !== 'ambiguous') {
+    purchaseResult = retryResult;
+  }
+}
 
       // Sake jarraba Requery status
       const retryResult = await purchaseService({
