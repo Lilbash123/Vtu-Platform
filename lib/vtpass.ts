@@ -21,18 +21,13 @@ export interface VtpassPurchaseResult {
 
 interface PurchaseParams {
   requestId: string;
-  serviceId: string; // VTpass serviceID, e.g. 'mtn', 'dstv', 'ikeja-electric'
+  serviceId: string;
   variationCode?: string;
-  amount: number; // naira, not kobo
+  amount: number;
   phone: string;
   billersCode?: string;
 }
 
-/**
- * Classifies the response into success / failed / ambiguous. Ambiguous
- * covers timeouts, 5xx, and unclear/"processing" states — must NEVER be
- * treated as failure. See settle route + requery cron for how it's resolved.
- */
 export async function purchaseService(params: PurchaseParams): Promise<VtpassPurchaseResult> {
   try {
     const res = await fetch(`${VTPASS_BASE_URL}/pay`, {
@@ -55,21 +50,20 @@ export async function purchaseService(params: PurchaseParams): Promise<VtpassPur
 
     const body = await res.json();
 
-    // Response code mapping is based on VTpass's commonly documented shape —
-    // verify against current docs for your account type before going live.
-    if (body.code === '000' && body.content?.transactions?.status === 'delivered') {
+    // GYARAN SHARAƊI: Muna duba code 000 ko kuma duk wani status da ke nuna nasara (delivered / success / successful)
+    const txStatus = body.content?.transactions?.status?.toLowerCase();
+    const isSuccess = body.code === '000' || txStatus === 'delivered' || txStatus === 'success' || txStatus === 'successful';
+
+    if (isSuccess) {
       return { outcome: 'success', providerReference: body.requestId ?? params.requestId, rawResponse: body };
     }
-    if (body.code === '000' && ['pending', 'initiated'].includes(body.content?.transactions?.status)) {
-      return { outcome: 'ambiguous', providerReference: body.requestId ?? params.requestId, rawResponse: body };
-    }
-    if (['failed', 'reversed'].includes(body.content?.transactions?.status)) {
+
+    if (['failed', 'reversed'].includes(txStatus)) {
       return { outcome: 'failed', providerReference: body.requestId ?? params.requestId, rawResponse: body };
     }
+
     return { outcome: 'ambiguous', providerReference: body.requestId ?? null, rawResponse: body };
   } catch (err) {
-    // Network error/timeout — we don't know if VTpass received the request.
-    // This must be ambiguous, never failed.
     logger.error('vtpass_purchase_network_error', { route: 'vtpass_lib', requestId: params.requestId, error: String(err) });
     return { outcome: 'ambiguous', providerReference: null, rawResponse: { error: String(err) } };
   }
@@ -95,9 +89,10 @@ export async function requeryTransaction(requestId: string): Promise<VtpassReque
     });
 
     const body = await res.json();
-    const status = body.content?.transactions?.status;
+    const status = body.content?.transactions?.status?.toLowerCase();
+    const isSuccess = body.code === '000' || status === 'delivered' || status === 'success' || status === 'successful';
 
-    if (status === 'delivered') return { outcome: 'success', providerReference: body.requestId ?? requestId, rawResponse: body };
+    if (isSuccess) return { outcome: 'success', providerReference: body.requestId ?? requestId, rawResponse: body };
     if (['failed', 'reversed'].includes(status)) return { outcome: 'failed', providerReference: body.requestId ?? requestId, rawResponse: body };
     return { outcome: 'ambiguous', providerReference: body.requestId ?? null, rawResponse: body };
   } catch (err) {
@@ -106,10 +101,6 @@ export async function requeryTransaction(requestId: string): Promise<VtpassReque
   }
 }
 
-/**
- * Confirm VTpass's actual webhook auth scheme for your account (some use a
- * shared secret header, others IP allowlisting) and adjust this accordingly.
- */
 export function verifyVtpassWebhookAuth(receivedSecret: string | null): boolean {
   const expected = process.env.VTPASS_WEBHOOK_SECRET!;
   if (!receivedSecret || !expected) return false;
