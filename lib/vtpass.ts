@@ -49,6 +49,9 @@ export async function purchaseService(params: PurchaseParams): Promise<VtpassPur
     });
 
     const body = await res.json();
+    
+    // DEBUG LOG: Domin mu gani a Vercel logs me VTPass ke dawowa da shi
+    console.log("VTPASS RAW RESPONSE:", JSON.stringify(body, null, 2));
 
     // GYARAN SHARAƊI: Muna duba code 000 ko kuma duk wani status da ke nuna nasara (delivered / success / successful)
     const txStatus = body.content?.transactions?.status?.toLowerCase();
