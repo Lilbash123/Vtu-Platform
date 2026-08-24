@@ -9,7 +9,6 @@ import { logger } from '@/lib/logger';
 
 const FIRST_REQUERY_DELAY_SECONDS = 30;
 
-// Helper domin samun request_id mai dacewa da VTPass (YYYYMMDDHHMM + random)
 function generateVtpassRequestId(): string {
   const date = new Date();
   const formattedDate = date.toISOString().replace(/[-T:\.Z]/g, "").slice(0, 12);
@@ -89,13 +88,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Amount does not match current price' }, { status: 400 });
       }
 
-      providerServiceId = variation.network_or_disco ?? '';
+      providerServiceId = (variation.network_or_disco ?? '').toLowerCase();
       variationCode = variation.variation_code;
       providerId = variation.provider_id;
       variationRowId = variation.id;
     }
 
-    // Amfani da sabon tsarin VTPass Request ID Format
     const requestId = generateVtpassRequestId();
 
     const { data: newTx, error: txInsertError } = await service
@@ -159,35 +157,16 @@ export async function POST(req: NextRequest) {
       billersCode: ['electricity', 'cable'].includes(body.serviceType) ? body.recipient : undefined,
     });
 
-    // IN-LINE REQUERY FIX: Idan aka samu outcome ambiguous (Processing/Pending)
-    // Tsaya na sakan 3, sannan ka sake gwadawa kafin ka saki response
     if (purchaseResult.outcome === 'ambiguous') {
-  await new Promise((resolve) => setTimeout(resolve, 3500));
+      await new Promise((resolve) => setTimeout(resolve, 3500));
 
-  // Amfani da requeryTransaction domin gujewa kuskuren 014
-  const retryResult = await requeryTransaction(requestId);
-
-  if (retryResult.outcome !== 'ambiguous') {
-    purchaseResult = retryResult;
-  }
-}
-
-      // Sake jarraba Requery status
-      const retryResult = await purchaseService({
-        requestId,
-        serviceId: providerServiceId,
-        variationCode,
-        amount: body.amount / 100,
-        phone: body.recipient,
-        billersCode: ['electricity', 'cable'].includes(body.serviceType) ? body.recipient : undefined,
-      });
+      const retryResult = await requeryTransaction(requestId);
 
       if (retryResult.outcome !== 'ambiguous') {
         purchaseResult = retryResult;
       }
     }
 
-    // Idan har yanzu yana ambiguous bayan sekon 3, tura shi zuwa background requery queue
     if (purchaseResult.outcome === 'ambiguous') {
       await service
         .from('service_transactions')
@@ -206,7 +185,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Idan an samu Success ko Failure nan take
     const { data: settleResult, error: settleError } = await service.rpc('settle_wallet_purchase', {
       p_service_tx_id: newTx.id,
       p_outcome: purchaseResult.outcome,
