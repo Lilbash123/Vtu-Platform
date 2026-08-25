@@ -30,7 +30,7 @@ function CableContent() {
   const [variationId, setVariationId] = useState(params.get('variationId') ?? '');
   const [recipient, setRecipient] = useState(params.get('recipient') ?? '');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ status: string; message: string } | null>(null);
+  const [result, setResult] = useState<{ status: string; message: string; transactionId?: string; amount?: number; recipient?: string } | null>(null);
 
   useEffect(() => {
     const supabase = getBrowserClient();
@@ -72,9 +72,9 @@ function CableContent() {
         }),
       });
 
-      if (res.status === 'success') setResult({ status: 'success', message: 'Cable subscription successful.' });
-      else if (res.status === 'pending_verify') setResult({ status: 'pending', message: 'Processing — check Transactions shortly.' });
-      else setResult({ status: 'failed', message: `Purchase ${res.status}.` });
+      if (res.status === 'success') setResult({ status: 'success', message: 'Cable subscription successful.', transactionId: res.transactionId, amount: selected.sale_price / 100, recipient });
+      else if (res.status === 'pending_verify') setResult({ status: 'pending', message: 'Your purchase is processing. We will confirm shortly.', transactionId: res.transactionId, amount: selected.sale_price / 100, recipient });
+      else setResult({ status: 'failed', message: `Purchase ${res.status}.`, transactionId: res.transactionId, amount: selected.sale_price / 100, recipient });
     } catch (err) {
       setResult({ status: 'failed', message: (err as Error).message });
     } finally {
@@ -144,6 +144,7 @@ function CableContent() {
             <TransactionResultModal
               status={result.status === 'success' ? 'success' : result.status === 'pending' ? 'pending' : 'failed'}
               message={result.message}
+              details={{ service: 'Cable', amount: result.amount, recipient: result.recipient, transactionId: result.transactionId }}
               onClose={() => setResult(null)}
             />
           )}

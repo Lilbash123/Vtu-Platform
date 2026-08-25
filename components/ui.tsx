@@ -96,15 +96,26 @@ export function Breadcrumb({
   );
 }
 
+
 type TransactionResultStatus = 'success' | 'pending' | 'failed';
+
+type TransactionResultDetails = {
+  service?: string;
+  amount?: number;
+  recipient?: string;
+  transactionId?: string;
+  reference?: string;
+};
 
 export function TransactionResultModal({
   status,
   message,
+  details,
   onClose,
 }: {
   status: TransactionResultStatus;
   message: string;
+  details?: TransactionResultDetails;
   onClose: () => void;
 }) {
   const config = {
@@ -115,7 +126,6 @@ export function TransactionResultModal({
       iconClass: 'bg-emerald-100 text-emerald-600',
       buttonClass: 'bg-emerald-600 hover:bg-emerald-700',
     },
-
     pending: {
       title: 'Transaction Pending',
       subtitle: 'Your transaction is being verified. Please wait.',
@@ -123,7 +133,6 @@ export function TransactionResultModal({
       iconClass: 'bg-amber-100 text-amber-600',
       buttonClass: 'bg-amber-500 hover:bg-amber-600',
     },
-
     failed: {
       title: 'Transaction Failed',
       subtitle: 'We could not complete this transaction.',
@@ -132,6 +141,11 @@ export function TransactionResultModal({
       buttonClass: 'bg-red-600 hover:bg-red-700',
     },
   }[status];
+
+  const formattedAmount =
+    typeof details?.amount === 'number'
+      ? `₦${details.amount.toLocaleString()}`
+      : undefined;
 
   return (
     <div
@@ -163,6 +177,50 @@ export function TransactionResultModal({
           <div className="mt-5 rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
             {message}
           </div>
+
+          {details && (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white text-left shadow-sm">
+
+              {details.service && (
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                  <span className="text-xs text-gray-500">Service</span>
+                  <span className="text-sm font-semibold capitalize text-gray-900">
+                    {details.service}
+                  </span>
+                </div>
+              )}
+
+              {formattedAmount && (
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                  <span className="text-xs text-gray-500">Amount</span>
+                  <span className="text-base font-bold text-gray-900">
+                    {formattedAmount}
+                  </span>
+                </div>
+              )}
+
+              {details.recipient && (
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 gap-4">
+                  <span className="text-xs text-gray-500">Recipient</span>
+                  <span className="text-sm font-semibold text-gray-900 break-all text-right">
+                    {details.recipient}
+                  </span>
+                </div>
+              )}
+
+              {(details.transactionId || details.reference) && (
+                <div className="px-4 py-3">
+                  <span className="block text-xs text-gray-500 mb-1">
+                    Transaction Reference
+                  </span>
+                  <span className="block text-xs font-mono font-semibold text-gray-700 break-all">
+                    {details.transactionId || details.reference}
+                  </span>
+                </div>
+              )}
+
+            </div>
+          )}
 
           {status === 'pending' && (
             <div className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-amber-600">

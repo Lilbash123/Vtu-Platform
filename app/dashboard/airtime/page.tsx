@@ -21,7 +21,7 @@ function BuyAirtimeContent() {
   const [recipient, setRecipient] = useState(params.get('recipient') ?? '');
   const [amount, setAmount] = useState(params.get('amount') ?? '');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ status: string; message: string } | null>(null);
+  const [result, setResult] = useState<{ status: string; message: string; transactionId?: string; amount?: number; recipient?: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,9 +46,9 @@ function BuyAirtimeContent() {
         }),
       });
 
-      if (res.status === 'success') setResult({ status: 'success', message: 'Airtime purchase successful.' });
-      else if (res.status === 'pending_verify') setResult({ status: 'pending', message: 'Processing — check Transactions shortly.' });
-      else setResult({ status: 'failed', message: `Purchase ${res.status}.` });
+      if (res.status === 'success') setResult({ status: 'success', message: 'Airtime purchase successful.', transactionId: res.transactionId, amount: naira, recipient });
+      else if (res.status === 'pending_verify') setResult({ status: 'pending', message: 'Your purchase is processing. We will confirm shortly.', transactionId: res.transactionId, amount: naira, recipient });
+      else setResult({ status: 'failed', message: `Purchase ${res.status}.`, transactionId: res.transactionId, amount: naira, recipient });
     } catch (err) {
       setResult({ status: 'failed', message: (err as Error).message });
     } finally {
@@ -97,6 +97,7 @@ function BuyAirtimeContent() {
             <TransactionResultModal
               status={result.status === 'success' ? 'success' : result.status === 'pending' ? 'pending' : 'failed'}
               message={result.message}
+              details={{ service: 'Airtime', amount: result.amount, recipient: result.recipient, transactionId: result.transactionId }}
               onClose={() => setResult(null)}
             />
           )}
