@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getBrowserClient } from '@/lib/supabase-browser';
 import { apiFetch } from '@/lib/api-fetch';
-import { Breadcrumb, Card, TextField, Button, StatusPill } from '@/components/ui';
+import { Breadcrumb, Card, TextField, Button, TransactionResultModal } from '@/components/ui';
 import { NetworkSelector, NETWORK_STYLES, type Network } from '@/components/network-selector';
 import { formatNaira } from '@/components/wallet-card';
 
@@ -118,10 +118,11 @@ function BuyDataContent() {
           />
 
           {result && (
-            <div className="flex items-center gap-2">
-              <StatusPill status={result.status === 'success' ? 'success' : result.status === 'pending' ? 'pending' : 'failed'} />
-              <span className="text-sm text-text-muted">{result.message}</span>
-            </div>
+            <TransactionResultModal
+              status={result.status === 'success' ? 'success' : result.status === 'pending' ? 'pending' : 'failed'}
+              message={result.message}
+              onClose={() => setResult(null)}
+            />
           )}
 
           <Button type="submit" disabled={loading || !selected} className="w-full">
