@@ -154,6 +154,31 @@ function CableContent() {
           </Button>
         </form>
       </Card>
+
+      {loading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-[2px] px-5">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-purple-50">
+              <div
+                className="h-10 w-10 animate-spin rounded-full border-4 border-purple-100"
+                style={{ borderTopColor: '#6C5CE7' }}
+              />
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900">
+              Processing your payment
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-gray-500">
+              We're sending this to the biller now. This can take a few seconds.
+            </p>
+
+            <p className="mt-4 text-xs font-medium text-gray-400">
+              Please don't close the app or go back.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
