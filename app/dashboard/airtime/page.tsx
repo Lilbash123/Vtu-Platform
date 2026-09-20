@@ -205,11 +205,13 @@ function BuyAirtimeContent() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-[2px] px-5">
           <div className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
 
-            {/* Pink Loader */}
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-pink-50">
-              <div className="h-10 w-10 animate-spin rounded-full border-4 border-pink-100 border-t-pink-500" />
-            </div>
-
+{/* Pink Loader */}
+<div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-pink-50">
+  <div
+    className="h-10 w-10 animate-spin rounded-full border-4 border-purple-100"
+    style={{ borderTopColor: '#6C5CE7' }}
+  />
+</div>
             <h2 className="text-lg font-bold text-gray-900">
               Processing your payment
             </h2>
